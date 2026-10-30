@@ -1,0 +1,64 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    background-color: #e6f4f4;
+  }
+}
+
+/* Custom teal scrollbar matching the screenshot */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 14px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f8f8;
+  border-radius: 9999px;
+  border: 2px solid #009698;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #009698;
+  border-radius: 9999px;
+  border: 2px solid #f1f8f8;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #007c7e;
+}
+
+/* Square checkbox custom styles */
+.square-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #334155;
+  border-radius: 1px;
+  background-color: #ffffff;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.square-checkbox:checked {
+  background-color: #008b8b;
+  border-color: #008b8b;
+}
+.square-checkbox:checked::before {
+  content: "";
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.square-checkbox:indeterminate {
+  background-color: #008b8b;
+  border-color: #008b8b;
+}
+.square-checkbox:indeterminate::before {
+  content: "";
+  width: 8px;
+  height: 2px;
+  background-color: white;
+}

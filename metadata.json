@@ -1,0 +1,6 @@
+{
+  "name": "경원남도 메신저",
+  "description": "실시간 대화, 사진 및 동영상 전송, 읽음 확인, 그룹 채팅방, 다중 수신자 선택, 예약 전송을 지원하는 교직원 전용 메신저",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
