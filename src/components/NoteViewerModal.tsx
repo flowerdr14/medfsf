@@ -11,6 +11,7 @@ import {
   FileText,
   Maximize2,
   Users,
+  Plus,
 } from 'lucide-react';
 import { Note, FileAttachment, TeacherUser } from '../types/messenger';
 
@@ -22,6 +23,7 @@ interface NoteViewerModalProps {
   allTeachers: TeacherUser[];
   onOpenMedia: (att: FileAttachment) => void;
   isPopup?: boolean;
+  onOpenNewCompose?: () => void;
 }
 
 export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
@@ -32,6 +34,7 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
   allTeachers,
   onOpenMedia,
   isPopup = true,
+  onOpenNewCompose,
 }) => {
   if (!isOpen || !note) return null;
 
@@ -239,16 +242,25 @@ export const NoteViewerModal: React.FC<NoteViewerModalProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
+            {onOpenNewCompose && (
+              <button
+                type="button"
+                onClick={onOpenNewCompose}
+                className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded text-xs font-bold shadow-xs flex items-center gap-1 transition-transform active:scale-95 cursor-pointer"
+                title="새 쪽지 작성창 하나 더 띄우기"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>새 쪽지창 띄우기</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                onReply(note);
-                onClose();
-              }}
-              className="px-4 py-1.5 bg-[#008b8b] hover:bg-[#007373] text-white rounded text-xs font-bold shadow-xs flex items-center gap-1.5 transition-colors"
+              onClick={() => onReply(note)}
+              className="px-4 py-1.5 bg-[#008b8b] hover:bg-[#007373] text-white rounded text-xs font-bold shadow-xs flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+              title="이 쪽지를 보면서 답장 쪽지창 띄우기"
             >
               <Reply className="w-3.5 h-3.5" />
-              <span>답장 쓰기</span>
+              <span>답장 쓰기 (새 팝업창)</span>
             </button>
           </div>
         </div>

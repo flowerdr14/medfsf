@@ -14,6 +14,7 @@ import {
   Send,
   Video,
   Image as ImageIcon,
+  Maximize2,
 } from 'lucide-react';
 import { Note, FileAttachment, TeacherUser } from '../types/messenger';
 
@@ -26,6 +27,8 @@ interface NotesViewProps {
   onOpenMedia: (att: FileAttachment) => void;
   onDeleteNote: (noteId: string) => void;
   onSendScheduledNow: (noteId: string) => void;
+  onOpenNotePopup?: (note: Note) => void;
+  onMarkAsRead?: (noteId: string) => void;
 }
 
 export const NotesView: React.FC<NotesViewProps> = ({
@@ -37,6 +40,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
   onOpenMedia,
   onDeleteNote,
   onSendScheduledNow,
+  onOpenNotePopup,
+  onMarkAsRead,
 }) => {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(notes[0]?.id || null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,6 +89,15 @@ export const NotesView: React.FC<NotesViewProps> = ({
 
   const selectedNote = notes.find((n) => n.id === selectedNoteId) || filteredNotes[0] || null;
 
+  // Mark selected note as read when viewed
+  React.useEffect(() => {
+    if (selectedNote && type === 'received' && onMarkAsRead) {
+      if (!selectedNote.readReceipts[currentUserId]) {
+        onMarkAsRead(selectedNote.id);
+      }
+    }
+  }, [selectedNote?.id, type, currentUserId, onMarkAsRead]);
+
   return (
     <div className="flex-1 flex flex-col h-full bg-white select-none">
       {/* Breadcrumb Header matching Screenshot 7 & 8 */}
@@ -93,14 +107,17 @@ export const NotesView: React.FC<NotesViewProps> = ({
           <span>홈 &gt; {type === 'received' ? '받은 쪽지' : '보낸 쪽지'}</span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onOpenCompose()}
-          className="px-3 py-1 bg-[#008b8b] hover:bg-[#007373] text-white text-xs font-semibold rounded flex items-center gap-1 shadow-xs transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>새 쪽지 작성</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenCompose()}
+            className="px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-bold rounded flex items-center gap-1 shadow-xs transition-transform active:scale-95 cursor-pointer"
+            title="새 쪽지 작성창 하나 더 띄우기"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>새 쪽지창 띄우기</span>
+          </button>
+        </div>
       </div>
 
       {/* Search & Tool Bar matching Screenshot 7 */}
@@ -236,7 +253,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
                 return (
                   <div
                     key={n.id}
-                    onClick={() => setSelectedNoteId(n.id)}
+                    onClick={() => {
+                      setSelectedNoteId(n.id);
+                      if (onOpenNotePopup) {
+                        onOpenNotePopup(n);
+                      }
+                    }}
                     className={`p-3 cursor-pointer transition-colors relative ${
                       isSelected
                         ? 'bg-teal-50/90 font-medium'
@@ -316,28 +338,29 @@ export const NotesView: React.FC<NotesViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenCompose([type === 'received' ? selectedNote.senderId : selectedNote.recipientIds[0]])}
-                      className="px-2.5 py-1 bg-white border border-[#008b8b] text-[#008b8b] hover:bg-teal-50 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                      className="px-3 py-1.5 bg-white border border-[#008b8b] text-[#008b8b] hover:bg-teal-50 rounded text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                      title="답장 작성하기"
                     >
-                      <Reply className="w-3 h-3" />
+                      <Reply className="w-3.5 h-3.5" />
                       <span>답장</span>
                     </button>
                     {selectedNote.isScheduled && (
                       <button
                         type="button"
                         onClick={() => onSendScheduledNow(selectedNote.id)}
-                        className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                       >
-                        <Send className="w-3 h-3" />
+                        <Send className="w-3.5 h-3.5" />
                         <span>지금 즉시 발송</span>
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => onDeleteNote(selectedNote.id)}
-                      className="p-1 text-slate-400 hover:text-red-500 rounded"
+                      className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 transition-colors cursor-pointer"
                       title="쪽지 삭제"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

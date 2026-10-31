@@ -36,6 +36,7 @@ interface NoteComposerModalProps {
   initialRecipientIds?: string[];
   replyToNoteTitle?: string;
   isPopup?: boolean;
+  onOpenAnotherCompose?: () => void;
 }
 
 export const NoteComposerModal: React.FC<NoteComposerModalProps> = ({
@@ -47,6 +48,7 @@ export const NoteComposerModal: React.FC<NoteComposerModalProps> = ({
   initialRecipientIds = [],
   replyToNoteTitle,
   isPopup = true,
+  onOpenAnotherCompose,
 }) => {
   if (!isOpen) return null;
 
@@ -457,6 +459,17 @@ export const NoteComposerModal: React.FC<NoteComposerModalProps> = ({
 
               {/* Action buttons matching Screenshot 10 */}
               <div className="flex items-center gap-2">
+                {onOpenAnotherCompose && (
+                  <button
+                    type="button"
+                    onClick={onOpenAnotherCompose}
+                    className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded text-xs font-bold shadow-xs flex items-center gap-1 transition-transform active:scale-95 cursor-pointer"
+                    title="새 쪽지 작성창 하나 더 띄우기"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>창 하나 더 띄우기</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleDraft}

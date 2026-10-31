@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Minus, Square, X, RotateCcw } from 'lucide-react';
-import { WindowInstance } from '../types/window';
+import { Minus, Square, X, RotateCcw, Plus, ExternalLink } from 'lucide-react';
+import { WindowInstance, WindowType } from '../types/window';
 
 interface DesktopWindowProps {
   window: WindowInstance;
@@ -9,6 +9,8 @@ interface DesktopWindowProps {
   onMinimize: (id: string) => void;
   onToggleMaximize: (id: string) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
+  onOpenAnotherWindow?: (type: WindowType) => void;
+  onPopOutToBrowser?: (window: WindowInstance) => void;
   children: React.ReactNode;
 }
 
@@ -19,6 +21,8 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
   onMinimize,
   onToggleMaximize,
   onUpdatePosition,
+  onOpenAnotherWindow,
+  onPopOutToBrowser,
   children,
 }) => {
   const isDraggingRef = useRef(false);
@@ -113,6 +117,34 @@ export const DesktopWindow: React.FC<DesktopWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 text-slate-700 shrink-0">
+          {onPopOutToBrowser && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPopOutToBrowser(window);
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 bg-teal-50 hover:bg-teal-100 text-[#008b8b] border border-teal-300 rounded text-[11px] font-bold shadow-xs mr-0.5 transition-transform active:scale-95 cursor-pointer"
+              title="새 창으로 띄우기"
+            >
+              <ExternalLink className="w-3 h-3 stroke-[2.2]" />
+              <span className="hidden sm:inline">새 창</span>
+            </button>
+          )}
+          {onOpenAnotherWindow && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAnotherWindow(window.type);
+              }}
+              className="flex items-center gap-1 px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded text-[11px] font-bold shadow-xs mr-1 transition-transform active:scale-95 cursor-pointer"
+              title="팝업 창 하나 더 띄우기"
+            >
+              <Plus className="w-3 h-3 stroke-[2.5]" />
+              <span>창 추가</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={(e) => {

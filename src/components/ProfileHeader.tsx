@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pencil, UserCheck, Shield } from 'lucide-react';
+import { Pencil, UserCheck, Shield, Send } from 'lucide-react';
 import { TeacherUser } from '../types/messenger';
 
 interface ProfileHeaderProps {
@@ -7,6 +7,7 @@ interface ProfileHeaderProps {
   onUpdateBio: (newName: string, newBio: string) => void;
   onOpenProfile: () => void;
   onOpenLogin: () => void;
+  onOpenCompose: () => void;
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -14,6 +15,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   onUpdateBio,
   onOpenProfile,
   onOpenLogin,
+  onOpenCompose,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
@@ -165,11 +167,21 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       </div>
 
       {/* Right controls: Quick user switch / status indicator */}
-      <div className="hidden md:flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onOpenCompose}
+          className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-bold rounded shadow-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+          title="쪽지 쓰기 (새 팝업창 열기)"
+        >
+          <Send className="w-3.5 h-3.5 stroke-[2.2]" />
+          <span>쪽지 쓰기</span>
+        </button>
+
         <button
           type="button"
           onClick={onOpenProfile}
-          className="px-2.5 py-1.5 bg-teal-800/50 hover:bg-teal-800 text-white text-xs font-semibold rounded border border-teal-600/60 flex items-center gap-1.5 transition-colors"
+          className="hidden sm:flex px-2.5 py-1.5 bg-teal-800/50 hover:bg-teal-800 text-white text-xs font-semibold rounded border border-teal-600/60 items-center gap-1.5 transition-colors"
           title="내 프로필 상세 설정"
         >
           <UserCheck className="w-3.5 h-3.5" />
@@ -179,7 +191,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         <button
           type="button"
           onClick={onOpenLogin}
-          className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-600 text-white text-xs font-semibold rounded border border-teal-500/60 flex items-center gap-1.5 transition-colors"
+          className="hidden md:flex px-2.5 py-1.5 bg-teal-700 hover:bg-teal-600 text-white text-xs font-semibold rounded border border-teal-500/60 items-center gap-1.5 transition-colors"
           title="다른 교사 계정으로 전환"
         >
           <Shield className="w-3.5 h-3.5" />

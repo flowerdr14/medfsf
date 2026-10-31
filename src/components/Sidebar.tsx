@@ -26,6 +26,7 @@ interface SidebarProps {
   currentUser: TeacherUser;
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
+  onOpenCompose: () => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -36,6 +37,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   onTabChange,
+  onOpenCompose,
   onOpenSettings,
   onLogout,
   unreadNotesCount,
@@ -87,9 +89,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <div className="w-[72px] sm:w-[80px] shrink-0 bg-[#008b8b] text-white flex flex-col justify-between py-3 select-none border-r border-[#007373] shadow-xs">
-      {/* Navigation Buttons list */}
-      <div className="flex flex-col items-center gap-1.5 w-full">
+    <div className="w-[72px] sm:w-[80px] shrink-0 bg-[#008b8b] text-white flex flex-col justify-between py-2.5 select-none border-r border-[#007373] shadow-xs">
+      {/* Quick Compose Button & Navigation Buttons list */}
+      <div className="flex flex-col items-center gap-1 w-full">
+        <button
+          type="button"
+          onClick={onOpenCompose}
+          className="w-[60px] sm:w-[68px] py-2 mb-1 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-md font-bold text-xs flex flex-col items-center justify-center shadow-md transition-transform active:scale-95 group cursor-pointer"
+          title="쪽지 쓰기 (새 팝업창)"
+        >
+          <Send className="w-4 h-4 stroke-[2.2] text-slate-900 group-hover:rotate-12 transition-transform" />
+          <span className="text-[10px] mt-1 font-bold leading-none">쪽지 쓰기</span>
+        </button>
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (

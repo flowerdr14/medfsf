@@ -20,8 +20,13 @@ import { SettingsModal } from './components/SettingsModal';
 import { LoginModal } from './components/LoginModal';
 import { MediaViewerModal } from './components/MediaViewerModal';
 import { DesktopWindow } from './components/DesktopWindow';
-import { Taskbar } from './components/Taskbar';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { BrowserPopupContainer } from './components/BrowserPopupContainer';
+import {
+  BrowserPopupType,
+  openBrowserPopup,
+  getMessengerChannel,
+} from './utils/browserPopup';
 
 import { WindowInstance, WindowType } from './types/window';
 import {
@@ -46,6 +51,26 @@ import {
 import { playNotificationSound } from './utils/audio';
 
 export default function App() {
+  // Check if current browser window is opened as a standalone real native browser popup
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const browserPopupType = searchParams?.get('popup') as BrowserPopupType | null;
+  const popupNoteId = searchParams?.get('noteId');
+  const popupRoomId = searchParams?.get('roomId');
+  const popupRecipients = searchParams?.get('recipients')?.split(',').filter(Boolean) || [];
+  const popupReplyTitle = searchParams?.get('replyTitle');
+
+  if (browserPopupType) {
+    return (
+      <BrowserPopupContainer
+        popupType={browserPopupType}
+        noteId={popupNoteId}
+        roomId={popupRoomId}
+        initialRecipients={popupRecipients}
+        replyTitle={popupReplyTitle}
+      />
+    );
+  }
+
   // Teachers state
   const [teachers, setTeachers] = useState<TeacherUser[]>(() => {
     const saved = localStorage.getItem('gwnd_teachers');
@@ -155,6 +180,47 @@ export default function App() {
     localStorage.setItem('gwnd_settings', JSON.stringify(settings));
   }, [settings]);
 
+  // Listen for real browser popup window sync events
+  useEffect(() => {
+    const channel = getMessengerChannel();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'gwnd_notes' && e.newValue) {
+        setNotes(JSON.parse(e.newValue));
+      }
+      if (e.key === 'gwnd_chat_rooms' && e.newValue) {
+        setChatRooms(JSON.parse(e.newValue));
+      }
+      if (e.key === 'gwnd_messages' && e.newValue) {
+        setMessages(JSON.parse(e.newValue));
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    if (channel) {
+      channel.onmessage = (event) => {
+        const { type: eventType } = event.data || {};
+        if (eventType === 'NOTE_SAVED') {
+          const fresh = localStorage.getItem('gwnd_notes');
+          if (fresh) {
+            setNotes(JSON.parse(fresh));
+          }
+          if (settings.soundEnabled) playNotificationSound(settings.soundType);
+          showToast('새 쪽지가 발송/등록되었습니다.', 'success');
+        } else if (eventType === 'NOTE_READ') {
+          const fresh = localStorage.getItem('gwnd_notes');
+          if (fresh) {
+            setNotes(JSON.parse(fresh));
+          }
+        }
+      };
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      if (channel) channel.close();
+    };
+  }, [settings]);
+
   // Window Manager: Open or Focus Window
   const openWindow = (
     type: WindowType,
@@ -167,9 +233,19 @@ export default function App() {
     const currentZ = nextZIndexRef.current;
 
     setWindows((prev) => {
-      // Check if a window with this ID or unique type already exists
-      const existingId = forceNew && data?.id ? `win-${type}-${data.id}` : `win-${type}`;
-      const existing = prev.find((w) => w.id === existingId);
+      // Determine unique ID for the window
+      let windowId: string;
+      if (forceNew) {
+        if (data?.id) {
+          windowId = `win-${type}-${data.id}`;
+        } else {
+          windowId = `win-${type}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        }
+      } else {
+        windowId = `win-${type}`;
+      }
+
+      const existing = prev.find((w) => w.id === windowId);
 
       if (existing) {
         setActiveWindowId(existing.id);
@@ -180,19 +256,39 @@ export default function App() {
         );
       }
 
-      // Compute cascading position
-      const offsetIndex = prev.length % 6;
-      const startX = Math.min(window.innerWidth - defaultSize.width - 20, 390 + offsetIndex * 24);
-      const startY = Math.min(window.innerHeight - defaultSize.height - 60, 20 + offsetIndex * 24);
+      // Compute cascading offset so each new popup window is staggered visibly
+      const cascadeCount = prev.filter((w) => !w.isMinimized).length;
+      const step = 32;
+      const offset = (cascadeCount % 8) * step;
+
+      const screenW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const screenH = typeof window !== 'undefined' ? window.innerHeight : 800;
+
+      const baseCenterX = Math.max(20, Math.round((screenW - defaultSize.width) / 2));
+      const baseCenterY = Math.max(30, Math.round((screenH - defaultSize.height) / 2));
+
+      // Calculate cascaded coordinates within bounds
+      let startX = baseCenterX + (offset - 48);
+      let startY = baseCenterY + (offset - 48);
+
+      if (startX + defaultSize.width > screenW - 20) {
+        startX = Math.max(20, screenW - defaultSize.width - 20);
+      }
+      if (startX < 20) startX = 20;
+
+      if (startY + defaultSize.height > screenH - 50) {
+        startY = Math.max(30, screenH - defaultSize.height - 60);
+      }
+      if (startY < 30) startY = 30;
 
       const newWin: WindowInstance = {
-        id: existingId,
+        id: windowId,
         title,
         type,
-        x: Math.max(20, startX),
-        y: Math.max(16, startY),
-        width: defaultSize.width,
-        height: defaultSize.height,
+        x: startX,
+        y: startY,
+        width: Math.min(defaultSize.width, screenW - 40),
+        height: Math.min(defaultSize.height, screenH - 70),
         zIndex: currentZ,
         isMinimized: false,
         isMaximized: false,
@@ -242,14 +338,31 @@ export default function App() {
     );
   };
 
-  // Helper actions to open specific popup windows
+  // Helper actions to open specific popup windows (Priority: Real Native Browser Popups)
   const openNoteComposeWindow = (recipientIds?: string[], replyFromTitle?: string) => {
+    const targetRecipients = recipientIds || selectedTeacherIds;
+
+    // 1. Try launching a real native OS/browser popup window first!
+    const realWin = openBrowserPopup('note-compose', {
+      recipientIds: targetRecipients,
+      replyTitle: replyFromTitle,
+    });
+
+    if (realWin) {
+      return;
+    }
+
+    // 2. Fallback: If blocked by browser popup blocker, open in-app desktop floating window
+    const existingComposeCount = windows.filter((w) => w.type === 'note-compose').length;
+    const windowTitle = existingComposeCount > 0 ? `쪽지 전송 (${existingComposeCount + 1})` : '쪽지 전송';
+    const composeSessionId = `compose-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
     openWindow(
       'note-compose',
-      '쪽지 전송',
+      windowTitle,
       { width: 720, height: 600 },
-      { initialRecipients: recipientIds || selectedTeacherIds, replyTitle: replyFromTitle },
-      false
+      { id: composeSessionId, initialRecipients: targetRecipients, replyTitle: replyFromTitle },
+      true
     );
   };
 
@@ -272,11 +385,21 @@ export default function App() {
       );
     }
 
+    // 1. Try launching a real native OS/browser popup window first!
+    const realWin = openBrowserPopup('note-view', {
+      noteId: note.id,
+    });
+
+    if (realWin) {
+      return;
+    }
+
+    // 2. Fallback if browser blocked popup
     openWindow(
       'note-view',
-      `쪽지 받기 - ${note.senderName}`,
+      `쪽지 받기 - ${note.senderName} (${note.title.slice(0, 10)})`,
       { width: 680, height: 560 },
-      { note },
+      { id: note.id, note },
       true
     );
   };
@@ -294,11 +417,21 @@ export default function App() {
   };
 
   const openReceivedNotesWindow = () => {
-    openWindow('notes-list-received', '홈 > 받은 쪽지', { width: 820, height: 620 });
+    // 1. Try launching a real native browser popup with the received notes screen!
+    const realWin = openBrowserPopup('received-notes', { width: 880, height: 680 });
+    if (realWin) return;
+
+    // 2. Fallback in-app window
+    openWindow('notes-list-received', '홈 > 받은 쪽지', { width: 880, height: 680 }, undefined, true);
   };
 
   const openSentNotesWindow = () => {
-    openWindow('notes-list-sent', '홈 > 보낸 쪽지', { width: 820, height: 620 });
+    // 1. Try launching a real native browser popup with the sent notes screen!
+    const realWin = openBrowserPopup('sent-notes', { width: 880, height: 680 });
+    if (realWin) return;
+
+    // 2. Fallback in-app window
+    openWindow('notes-list-sent', '홈 > 보낸 쪽지', { width: 880, height: 680 }, undefined, true);
   };
 
   const openReceivedFilesWindow = () => {
@@ -389,14 +522,17 @@ export default function App() {
   };
 
   // Send Note action
-  const handleSendNote = (data: {
-    recipientIds: string[];
-    title: string;
-    content: string;
-    attachments: FileAttachment[];
-    isScheduled: boolean;
-    scheduledTime?: string;
-  }) => {
+  const handleSendNote = (
+    data: {
+      recipientIds: string[];
+      title: string;
+      content: string;
+      attachments: FileAttachment[];
+      isScheduled: boolean;
+      scheduledTime?: string;
+    },
+    windowId?: string
+  ) => {
     const now = new Date();
     const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
       2,
@@ -433,9 +569,13 @@ export default function App() {
       playNotificationSound(settings.soundType);
     }
 
-    // Clear selections and notify
+    // Clear selections and close the specific compose window
     setSelectedTeacherIds([]);
-    closeWindow('win-note-compose');
+    if (windowId) {
+      closeWindow(windowId);
+    } else {
+      closeWindow('win-note-compose');
+    }
 
     showToast(
       data.isScheduled
@@ -444,12 +584,15 @@ export default function App() {
     );
   };
 
-  const handleSaveDraftNote = (data: {
-    recipientIds: string[];
-    title: string;
-    content: string;
-    attachments: FileAttachment[];
-  }) => {
+  const handleSaveDraftNote = (
+    data: {
+      recipientIds: string[];
+      title: string;
+      content: string;
+      attachments: FileAttachment[];
+    },
+    windowId?: string
+  ) => {
     const draftNote: Note = {
       id: `draft-${Date.now()}`,
       senderId: currentUser.id,
@@ -468,7 +611,11 @@ export default function App() {
       isDraft: true,
     };
     setNotes((prev) => [draftNote, ...prev]);
-    closeWindow('win-note-compose');
+    if (windowId) {
+      closeWindow(windowId);
+    } else {
+      closeWindow('win-note-compose');
+    }
     showToast('임시 저장이 완료되었습니다.', 'info');
   };
 
@@ -767,8 +914,16 @@ export default function App() {
   // Main active tab for full-screen messenger home
   const [activeTab, setActiveTab] = useState<NavTab>('org');
 
-  // Sidebar navigation click router (switches full-screen main view!)
+  // Sidebar navigation click router (keeps main screen unchanged when popping up notes)
   const handleNavClick = (tab: NavTab) => {
+    if (tab === 'received-notes') {
+      openReceivedNotesWindow();
+      return;
+    }
+    if (tab === 'sent-notes') {
+      openSentNotesWindow();
+      return;
+    }
     setActiveTab(tab);
     if (tab === 'chat' && activeRoomId) {
       setChatRooms((prev) =>
@@ -804,6 +959,7 @@ export default function App() {
           onUpdateBio={handleUpdateBio}
           onOpenProfile={openProfileWindow}
           onOpenLogin={openLoginWindow}
+          onOpenCompose={() => openNoteComposeWindow()}
         />
 
         {/* Full-screen Body: Sidebar + Active Central View */}
@@ -813,6 +969,7 @@ export default function App() {
             currentUser={currentUser}
             activeTab={activeTab}
             onTabChange={handleNavClick}
+            onOpenCompose={() => openNoteComposeWindow()}
             onOpenProfile={openProfileWindow}
             onOpenSettings={openSettingsWindow}
             onLogout={openLoginWindow}
@@ -846,6 +1003,7 @@ export default function App() {
                 onOpenMedia={openMediaWindow}
                 onDeleteNote={handleDeleteNote}
                 onSendScheduledNow={handleSendScheduledNow}
+                onOpenNotePopup={openNoteViewWindow}
               />
             )}
 
@@ -859,6 +1017,7 @@ export default function App() {
                 onOpenMedia={openMediaWindow}
                 onDeleteNote={handleDeleteNote}
                 onSendScheduledNow={handleSendScheduledNow}
+                onOpenNotePopup={openNoteViewWindow}
               />
             )}
 
@@ -928,17 +1087,50 @@ export default function App() {
           onMinimize={minimizeWindow}
           onToggleMaximize={toggleMaximizeWindow}
           onUpdatePosition={updateWindowPosition}
+          onPopOutToBrowser={(win) => {
+            if (win.type === 'note-compose') {
+              closeWindow(win.id);
+              openBrowserPopup('note-compose', {
+                recipientIds: win.data?.initialRecipients,
+                replyTitle: win.data?.replyTitle,
+              });
+            } else if (win.type === 'note-view' && win.data?.note) {
+              closeWindow(win.id);
+              openBrowserPopup('note-view', {
+                noteId: win.data.note.id,
+              });
+            } else if (win.type === 'notes-list-received') {
+              closeWindow(win.id);
+              openBrowserPopup('received-notes');
+            } else if (win.type === 'notes-list-sent') {
+              closeWindow(win.id);
+              openBrowserPopup('sent-notes');
+            } else if (win.type === 'chat') {
+              closeWindow(win.id);
+              openBrowserPopup('chat', { roomId: win.data?.roomId });
+            }
+          }}
+          onOpenAnotherWindow={(winType) => {
+            if (winType === 'note-compose') {
+              openNoteComposeWindow();
+            } else if (winType === 'note-view') {
+              openNoteComposeWindow();
+            } else {
+              openWindow(winType, `${win.title} (추가 창)`, { width: win.width, height: win.height }, undefined, true);
+            }
+          }}
         >
           {win.type === 'note-compose' && (
             <NoteComposerModal
               isOpen={true}
               isPopup={true}
               onClose={() => closeWindow(win.id)}
-              onSend={handleSendNote}
-              onSaveDraft={handleSaveDraftNote}
+              onSend={(data) => handleSendNote(data, win.id)}
+              onSaveDraft={(data) => handleSaveDraftNote(data, win.id)}
               allTeachers={teachers}
               initialRecipientIds={win.data?.initialRecipients || []}
               replyToNoteTitle={win.data?.replyTitle}
+              onOpenAnotherCompose={() => openNoteComposeWindow()}
             />
           )}
 
@@ -951,6 +1143,7 @@ export default function App() {
               onReply={(note) => {
                 openNoteComposeWindow([note.senderId], note.title);
               }}
+              onOpenNewCompose={() => openNoteComposeWindow()}
               allTeachers={teachers}
               onOpenMedia={openMediaWindow}
             />
@@ -966,6 +1159,7 @@ export default function App() {
               onOpenMedia={openMediaWindow}
               onDeleteNote={handleDeleteNote}
               onSendScheduledNow={handleSendScheduledNow}
+              onOpenNotePopup={openNoteViewWindow}
             />
           )}
 
@@ -979,6 +1173,7 @@ export default function App() {
               onOpenMedia={openMediaWindow}
               onDeleteNote={handleDeleteNote}
               onSendScheduledNow={handleSendScheduledNow}
+              onOpenNotePopup={openNoteViewWindow}
             />
           )}
 
@@ -1077,27 +1272,6 @@ export default function App() {
           )}
         </DesktopWindow>
       ))}
-
-      {/* Windows Desktop Taskbar (Shows open popup windows) */}
-      {windows.length > 0 && (
-        <Taskbar
-          windows={windows}
-          activeWindowId={activeWindowId}
-          onWindowClick={(id) => {
-            const win = windows.find((w) => w.id === id);
-            if (win?.isMinimized) {
-              focusWindow(id);
-            } else if (activeWindowId === id) {
-              minimizeWindow(id);
-            } else {
-              focusWindow(id);
-            }
-          }}
-          currentUser={currentUser}
-          onOpenMessengerMain={() => setActiveTab('org')}
-          isMainMinimized={false}
-        />
-      )}
 
       {/* Floating in-app Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
