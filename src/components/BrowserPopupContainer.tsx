@@ -4,13 +4,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Plus, X, ExternalLink, RefreshCw } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { NoteComposerModal } from './NoteComposerModal';
 import { NoteViewerModal } from './NoteViewerModal';
 import { NotesView } from './NotesView';
+import { FilesView } from './FilesView';
 import { ChatView } from './ChatView';
 import { NoticeBoardView } from './NoticeBoardView';
 import { PollBoardView } from './PollBoardView';
+import { SettingsModal } from './SettingsModal';
+import { LoginModal } from './LoginModal';
+import { ProfileEditModal } from './ProfileEditModal';
 import {
   TeacherUser,
   Note,
@@ -18,6 +22,7 @@ import {
   ChatMessage,
   Announcement,
   Poll,
+  NotificationSettings,
   FileAttachment,
 } from '../types/messenger';
 import {
@@ -27,6 +32,7 @@ import {
   INITIAL_CHAT_MESSAGES,
   INITIAL_ANNOUNCEMENTS,
   INITIAL_POLLS,
+  DEFAULT_NOTIFICATION_SETTINGS,
 } from '../data/mockData';
 import {
   BrowserPopupType,
@@ -55,7 +61,7 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
     return saved ? JSON.parse(saved) : INITIAL_TEACHERS;
   });
 
-  const [currentUser] = useState<TeacherUser>(() => {
+  const [currentUser, setCurrentUser] = useState<TeacherUser>(() => {
     const saved = localStorage.getItem('gwnd_current_user');
     return saved ? JSON.parse(saved) : teachers[0];
   });
@@ -85,6 +91,15 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
     return saved ? JSON.parse(saved) : INITIAL_POLLS;
   });
 
+  const [settings, setSettings] = useState<NotificationSettings>(() => {
+    const saved = localStorage.getItem('gwnd_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_NOTIFICATION_SETTINGS;
+  });
+
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(
+    roomId || chatRooms[0]?.id || null
+  );
+
   // Target Note if viewing
   const activeNote = notes.find((n) => n.id === noteId) || null;
 
@@ -101,19 +116,30 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
       if (e.key === 'gwnd_messages' && e.newValue) {
         setMessages(JSON.parse(e.newValue));
       }
+      if (e.key === 'gwnd_notices' && e.newValue) {
+        setNotices(JSON.parse(e.newValue));
+      }
+      if (e.key === 'gwnd_polls' && e.newValue) {
+        setPolls(JSON.parse(e.newValue));
+      }
+      if (e.key === 'gwnd_current_user' && e.newValue) {
+        setCurrentUser(JSON.parse(e.newValue));
+      }
     };
 
     window.addEventListener('storage', handleStorage);
 
     if (channel) {
       channel.onmessage = (event) => {
-        const { type: eventType, payload } = event.data || {};
+        const { type: eventType } = event.data || {};
         if (eventType === 'NOTE_SAVED' || eventType === 'NOTE_READ') {
           const fresh = localStorage.getItem('gwnd_notes');
           if (fresh) setNotes(JSON.parse(fresh));
         } else if (eventType === 'CHAT_SENT') {
           const freshMessages = localStorage.getItem('gwnd_messages');
           if (freshMessages) setMessages(JSON.parse(freshMessages));
+          const freshRooms = localStorage.getItem('gwnd_chat_rooms');
+          if (freshRooms) setChatRooms(JSON.parse(freshRooms));
         }
       };
     }
@@ -127,15 +153,20 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
   // Set document title in the real browser window
   useEffect(() => {
     const titleMap: Record<BrowserPopupType, string> = {
-      'note-compose': '경원남도 메신저 - 쪽지 전송 (브라우저 팝업)',
+      'note-compose': '경원남도 메신저 - 쪽지 전송',
       'note-view': activeNote
         ? `경원남도 메신저 - 쪽지 받기: ${activeNote.senderName} (${activeNote.title})`
         : '경원남도 메신저 - 쪽지 받기',
       'chat': '경원남도 메신저 - 실시간 대화',
-      'received-notes': '경원남도 메신저 - 받은 쪽지',
-      'sent-notes': '경원남도 메신저 - 보낸 쪽지',
+      'received-notes': '경원남도 메신저 - 받은 쪽지함',
+      'sent-notes': '경원남도 메신저 - 보낸 쪽지함',
+      'received-files': '경원남도 메신저 - 받은 파일함',
+      'sent-files': '경원남도 메신저 - 보낸 파일함',
       'notices': '경원남도 메신저 - 공지사항',
       'polls': '경원남도 메신저 - 설문/투표',
+      'settings': '경원남도 메신저 - 환경 설정',
+      'login': '경원남도 메신저 - 교사 전환',
+      'profile': '경원남도 메신저 - 프로필 관리',
     };
     document.title = titleMap[popupType] || '경원남도 메신저';
   }, [popupType, activeNote]);
@@ -215,7 +246,6 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
       channel.close();
     }
 
-    // Close real browser popup window
     window.close();
   };
 
@@ -256,6 +286,131 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
     window.close();
   };
 
+  const handleSendMessage = (
+    rId: string,
+    text: string,
+    media?: FileAttachment,
+    isScheduled?: boolean,
+    scheduledTime?: string
+  ) => {
+    const targetId = rId || activeRoomId;
+    if (!targetId) return;
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      roomId: targetId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderAvatar: currentUser.avatar,
+      text,
+      sentAt: timeStr,
+      readBy: [currentUser.id],
+      media,
+      isScheduled,
+      scheduledTime,
+    };
+    const roomMsgs = messages[targetId] || [];
+    const updatedMessages = {
+      ...messages,
+      [targetId]: [...roomMsgs, newMsg],
+    };
+    setMessages(updatedMessages);
+    localStorage.setItem('gwnd_messages', JSON.stringify(updatedMessages));
+
+    const updatedRooms = chatRooms.map((r) =>
+      r.id === targetId
+        ? {
+            ...r,
+            lastMessage: text || (media ? '[파일 첨부]' : ''),
+            lastMessageAt: timeStr,
+          }
+        : r
+    );
+    setChatRooms(updatedRooms);
+    localStorage.setItem('gwnd_chat_rooms', JSON.stringify(updatedRooms));
+
+    const channel = getMessengerChannel();
+    if (channel) {
+      channel.postMessage({ type: 'CHAT_SENT', payload: newMsg });
+      channel.close();
+    }
+  };
+
+  const handleCreateGroupRoom = (name: string, memberIds: string[]) => {
+    const newRoom: ChatRoom = {
+      id: `room-${Date.now()}`,
+      name,
+      type: 'group',
+      participantIds: Array.from(new Set([currentUser.id, ...memberIds])),
+      unreadCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    const updatedRooms = [newRoom, ...chatRooms];
+    setChatRooms(updatedRooms);
+    localStorage.setItem('gwnd_chat_rooms', JSON.stringify(updatedRooms));
+    setActiveRoomId(newRoom.id);
+  };
+
+  const handleAddNotice = (notice: Omit<Announcement, 'id' | 'views'>) => {
+    const newNotice: Announcement = {
+      ...notice,
+      id: `notice-${Date.now()}`,
+      views: 1,
+    };
+    const updatedNotices = [newNotice, ...notices];
+    setNotices(updatedNotices);
+    localStorage.setItem('gwnd_notices', JSON.stringify(updatedNotices));
+  };
+
+  const handleCastVote = (pollId: string, optionId: string) => {
+    const updatedPolls = polls.map((poll) => {
+      if (poll.id !== pollId) return poll;
+      if (poll.votedUserIds.includes(currentUser.id)) return poll;
+      const updatedOptions = poll.options.map((opt) =>
+        opt.id === optionId
+          ? { ...opt, votes: opt.votes + 1, voters: [...opt.voters, currentUser.name] }
+          : opt
+      );
+      return {
+        ...poll,
+        options: updatedOptions,
+        votedUserIds: [...poll.votedUserIds, currentUser.id],
+        totalVotes: poll.totalVotes + 1,
+      };
+    });
+    setPolls(updatedPolls);
+    localStorage.setItem('gwnd_polls', JSON.stringify(updatedPolls));
+  };
+
+  const handleCreatePoll = (pollData: {
+    title: string;
+    description: string;
+    options: string[];
+  }) => {
+    const nowStr = new Date().toISOString().slice(0, 10);
+    const newPoll: Poll = {
+      id: `poll-${Date.now()}`,
+      title: pollData.title,
+      description: pollData.description,
+      author: currentUser.name,
+      department: currentUser.department,
+      date: nowStr,
+      views: 1,
+      options: pollData.options.map((opt, idx) => ({
+        id: `opt-${Date.now()}-${idx}`,
+        text: opt,
+        votes: 0,
+        voters: [],
+      })),
+      votedUserIds: [],
+      totalVotes: 0,
+    };
+    const updatedPolls = [newPoll, ...polls];
+    setPolls(updatedPolls);
+    localStorage.setItem('gwnd_polls', JSON.stringify(updatedPolls));
+  };
+
   const handleOpenAnotherCompose = () => {
     openBrowserPopup('note-compose');
   };
@@ -275,6 +430,13 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
             {popupType === 'chat' && '경원남도 메신저 - 실시간 대화'}
             {popupType === 'received-notes' && '경원남도 메신저 - 받은 쪽지함'}
             {popupType === 'sent-notes' && '경원남도 메신저 - 보낸 쪽지함'}
+            {popupType === 'received-files' && '경원남도 메신저 - 받은 파일함'}
+            {popupType === 'sent-files' && '경원남도 메신저 - 보낸 파일함'}
+            {popupType === 'notices' && '경원남도 메신저 - 공지사항'}
+            {popupType === 'polls' && '경원남도 메신저 - 설문/투표'}
+            {popupType === 'settings' && '경원남도 메신저 - 환경 설정'}
+            {popupType === 'login' && '경원남도 메신저 - 교사 전환'}
+            {popupType === 'profile' && '경원남도 메신저 - 프로필 관리'}
           </span>
         </div>
 
@@ -400,6 +562,106 @@ export const BrowserPopupContainer: React.FC<BrowserPopupContainerProps> = ({
             onSendScheduledNow={() => {}}
             onOpenNotePopup={(note) => {
               openBrowserPopup('note-view', { noteId: note.id });
+            }}
+          />
+        )}
+
+        {popupType === 'received-files' && (
+          <FilesView
+            type="received"
+            notes={notes.filter((n) => n.recipientIds.includes(currentUser.id) && !n.isDraft && !n.isScheduled)}
+            onOpenMedia={(att) => {
+              if (att.url) window.open(att.url, '_blank');
+            }}
+          />
+        )}
+
+        {popupType === 'sent-files' && (
+          <FilesView
+            type="sent"
+            notes={notes.filter((n) => n.senderId === currentUser.id)}
+            onOpenMedia={(att) => {
+              if (att.url) window.open(att.url, '_blank');
+            }}
+          />
+        )}
+
+        {popupType === 'chat' && (
+          <ChatView
+            currentRoomId={activeRoomId}
+            onSelectRoom={(rId) => setActiveRoomId(rId)}
+            chatRooms={chatRooms}
+            messages={messages}
+            currentUser={currentUser}
+            allTeachers={teachers}
+            onSendMessage={handleSendMessage}
+            onCreateGroupRoom={handleCreateGroupRoom}
+            onOpenMedia={(att) => {
+              if (att.url) window.open(att.url, '_blank');
+            }}
+          />
+        )}
+
+        {popupType === 'notices' && (
+          <NoticeBoardView
+            notices={notices}
+            onOpenMedia={(att) => {
+              if (att.url) window.open(att.url, '_blank');
+            }}
+            onAddNotice={handleAddNotice}
+            currentUserName={`${currentUser.name} (${currentUser.role})`}
+          />
+        )}
+
+        {popupType === 'polls' && (
+          <PollBoardView
+            polls={polls}
+            currentUser={currentUser}
+            onCastVote={handleCastVote}
+            onCreatePoll={handleCreatePoll}
+          />
+        )}
+
+        {popupType === 'settings' && (
+          <SettingsModal
+            isOpen={true}
+            isPopup={true}
+            settings={settings}
+            onClose={() => window.close()}
+            onUpdateSettings={(updated) => {
+              const newSettings = { ...settings, ...updated };
+              setSettings(newSettings);
+              localStorage.setItem('gwnd_settings', JSON.stringify(newSettings));
+            }}
+          />
+        )}
+
+        {popupType === 'login' && (
+          <LoginModal
+            isOpen={true}
+            isPopup={true}
+            currentUser={currentUser}
+            allTeachers={teachers}
+            onSelectUser={(u) => {
+              setCurrentUser(u);
+              localStorage.setItem('gwnd_current_user', JSON.stringify(u));
+              window.close();
+            }}
+            onClose={() => window.close()}
+          />
+        )}
+
+        {popupType === 'profile' && (
+          <ProfileEditModal
+            isOpen={true}
+            isPopup={true}
+            currentUser={currentUser}
+            onClose={() => window.close()}
+            onSaveProfile={(updated) => {
+              const merged = { ...currentUser, ...updated };
+              setCurrentUser(merged);
+              localStorage.setItem('gwnd_current_user', JSON.stringify(merged));
+              window.close();
             }}
           />
         )}

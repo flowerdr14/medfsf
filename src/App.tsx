@@ -408,12 +408,13 @@ export default function App() {
     const targetRoomId = roomId || activeRoomId || chatRooms[0]?.id;
     if (targetRoomId) {
       setActiveRoomId(targetRoomId);
-      // Clear unread
       setChatRooms((prev) =>
         prev.map((r) => (r.id === targetRoomId ? { ...r, unreadCount: 0 } : r))
       );
     }
-    openWindow('chat', '실시간 대화', { width: 780, height: 600 }, { roomId: targetRoomId });
+    const realWin = openBrowserPopup('chat', { roomId: targetRoomId, width: 840, height: 680 });
+    if (realWin) return;
+    openWindow('chat', '실시간 대화', { width: 780, height: 600 }, { roomId: targetRoomId }, true);
   };
 
   const openReceivedNotesWindow = () => {
@@ -435,31 +436,45 @@ export default function App() {
   };
 
   const openReceivedFilesWindow = () => {
-    openWindow('files-list-received', '홈 > 받은 파일', { width: 800, height: 600 });
+    const realWin = openBrowserPopup('received-files', { width: 840, height: 640 });
+    if (realWin) return;
+    openWindow('files-list-received', '홈 > 받은 파일', { width: 800, height: 600 }, undefined, true);
   };
 
   const openSentFilesWindow = () => {
-    openWindow('files-list-sent', '홈 > 보낸 파일', { width: 800, height: 600 });
+    const realWin = openBrowserPopup('sent-files', { width: 840, height: 640 });
+    if (realWin) return;
+    openWindow('files-list-sent', '홈 > 보낸 파일', { width: 800, height: 600 }, undefined, true);
   };
 
   const openNoticesWindow = () => {
-    openWindow('notices', '홈 > 공지', { width: 780, height: 580 });
+    const realWin = openBrowserPopup('notices', { width: 840, height: 640 });
+    if (realWin) return;
+    openWindow('notices', '홈 > 공지', { width: 780, height: 580 }, undefined, true);
   };
 
   const openPollsWindow = () => {
-    openWindow('polls', '홈 > 투표', { width: 740, height: 580 });
+    const realWin = openBrowserPopup('polls', { width: 800, height: 640 });
+    if (realWin) return;
+    openWindow('polls', '홈 > 투표', { width: 740, height: 580 }, undefined, true);
   };
 
   const openProfileWindow = () => {
-    openWindow('profile', '사용자 프로필 관리', { width: 490, height: 540 });
+    const realWin = openBrowserPopup('profile', { width: 500, height: 560 });
+    if (realWin) return;
+    openWindow('profile', '사용자 프로필 관리', { width: 490, height: 540 }, undefined, true);
   };
 
   const openSettingsWindow = () => {
-    openWindow('settings', '알림 및 환경 설정', { width: 500, height: 560 });
+    const realWin = openBrowserPopup('settings', { width: 520, height: 580 });
+    if (realWin) return;
+    openWindow('settings', '알림 및 환경 설정', { width: 500, height: 560 }, undefined, true);
   };
 
   const openLoginWindow = () => {
-    openWindow('login', '교직원 로그인 및 계정 전환', { width: 520, height: 560 });
+    const realWin = openBrowserPopup('login', { width: 540, height: 580 });
+    if (realWin) return;
+    openWindow('login', '교직원 로그인 및 계정 전환', { width: 520, height: 560 }, undefined, true);
   };
 
   const openMediaWindow = (att: FileAttachment) => {
@@ -914,8 +929,12 @@ export default function App() {
   // Main active tab for full-screen messenger home
   const [activeTab, setActiveTab] = useState<NavTab>('org');
 
-  // Sidebar navigation click router (keeps main screen unchanged when popping up notes)
+  // Sidebar navigation click router (opens all features as popups, keeps main screen on org tree)
   const handleNavClick = (tab: NavTab) => {
+    if (tab === 'org') {
+      setActiveTab('org');
+      return;
+    }
     if (tab === 'received-notes') {
       openReceivedNotesWindow();
       return;
@@ -924,11 +943,25 @@ export default function App() {
       openSentNotesWindow();
       return;
     }
-    setActiveTab(tab);
-    if (tab === 'chat' && activeRoomId) {
-      setChatRooms((prev) =>
-        prev.map((r) => (r.id === activeRoomId ? { ...r, unreadCount: 0 } : r))
-      );
+    if (tab === 'received-files') {
+      openReceivedFilesWindow();
+      return;
+    }
+    if (tab === 'sent-files') {
+      openSentFilesWindow();
+      return;
+    }
+    if (tab === 'chat') {
+      openChatWindow();
+      return;
+    }
+    if (tab === 'notices') {
+      openNoticesWindow();
+      return;
+    }
+    if (tab === 'polls') {
+      openPollsWindow();
+      return;
     }
   };
 

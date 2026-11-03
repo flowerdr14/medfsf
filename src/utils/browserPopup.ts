@@ -9,8 +9,13 @@ export type BrowserPopupType =
   | 'chat'
   | 'received-notes'
   | 'sent-notes'
+  | 'received-files'
+  | 'sent-files'
   | 'notices'
-  | 'polls';
+  | 'polls'
+  | 'settings'
+  | 'login'
+  | 'profile';
 
 export interface PopupOpenOptions {
   width?: number;
